@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Video Source Finder",
   "description": "Find video sources on a web page and choose which videos to download.",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "minimum_chrome_version": "120",
   "permissions": ["activeTab", "scripting", "downloads", "offscreen", "storage"],
   "optional_host_permissions": ["http://*/*", "https://*/*"],

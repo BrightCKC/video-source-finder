@@ -1,12 +1,12 @@
 # Video Source Finder 網頁影片偵測器
 
-Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的影片來源，並讓你預覽、下載或複製網址。此說明適用於 `v0.4.0`，需要 Chrome 120 或更新版本。
+Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的影片來源，並讓你預覽、下載或複製網址。此說明適用於 `v0.5.0`，需要 Chrome 120 或更新版本。
 
 **開發聲明**　本專案由 OpenAI Codex 生成。
 
 ## 安裝
 
-1. 解壓縮 `video-source-finder-v0.4.0.zip`。若你已取得專案原始碼，也可以直接使用 `extension` 資料夾。
+1. 從 [v0.5.0 發佈頁](https://github.com/BrightCKC/video-source-finder/releases/tag/v0.5.0) 下載並解壓縮 `video-source-finder-v0.5.0.zip`。若下載的是專案原始碼，請使用解壓縮後的 `extension` 資料夾。
 2. 在 Chrome 網址列輸入 `chrome://extensions`，開啟右上角的「開發人員模式」。
 3. 點「載入未封裝項目」，選取含有 `manifest.json` 的資料夾。
 4. 重新整理影片頁面，從 Chrome 工具列的擴充功能選單開啟 **Video Source Finder**。
@@ -39,5 +39,4 @@ Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的�
 ## 專案檔案
 
 - `extension/` 包含 Chrome 擴充功能及執行所需的檔案，可直接載入。
-- `video_downloader.py` 是早期的命令列工具。要使用它，先安裝 `requirements.txt` 中的依賴，再執行 `python video_downloader.py "網頁網址"`。加入 `--download` 可在掃描後選擇要下載的 MP4 或 WebM 檔案。
 - 第三方元件及其授權說明見 [THIRD-PARTY.txt](extension/vendor/THIRD-PARTY.txt)。
