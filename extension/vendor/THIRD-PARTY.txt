@@ -1,0 +1,8 @@
+hls.js 1.7.4 is distributed under the Apache License 2.0.
+License and notices are in Apache-2.0.txt and hls.LICENSE.
+Source: https://github.com/video-dev/hls.js/tree/v1.7.4
+
+Mediabunny 1.65.2 is distributed under the Mozilla Public License 2.0.
+License is in mediabunny.LICENSE.
+Corresponding source is included in the upstream package:
+https://registry.npmjs.org/mediabunny/-/mediabunny-1.65.2.tgz

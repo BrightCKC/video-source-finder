@@ -1,61 +1,114 @@
+import { makeHlsPreview } from "./hls-preview.js";
+
 const count = document.querySelector("#count");
 const empty = document.querySelector("#empty");
 const notice = document.querySelector("#notice");
 const list = document.querySelector("#sources");
 const rescan = document.querySelector("#rescan");
 const directFormats = new Set(["MP4", "WebM", "MOV", "OGV"]);
+const rows = new Map();
 let tabId;
-let lastItems;
+let pageOrigin;
 
 function tell(text) {
   notice.textContent = text;
   notice.hidden = !text;
 }
 
-function makeItem(item, index) {
-  const row = document.createElement("li");
-  const details = document.createElement("div");
-  const title = document.createElement("strong");
-  const meta = document.createElement("p");
+function action(label, handler, error, primary = false) {
   const button = document.createElement("button");
-  const direct = directFormats.has(item.format);
-  const stream = item.format === "HLS" || item.format === "DASH";
-  title.textContent = `${index + 1}. ${item.format}${stream ? " 串流" : ""}`;
-  meta.textContent = `${item.host} · ${item.foundIn}`;
-  meta.className = "meta";
   button.type = "button";
-  button.textContent = direct ? "下載" : "複製網址";
-  if (direct) button.className = "download";
+  button.textContent = label;
+  if (primary) button.className = "download";
   button.addEventListener("click", async () => {
     button.disabled = true;
     try {
-      if (direct) {
-        await chrome.downloads.download({ url: item.url, saveAs: true });
-        tell("已交由 Chrome 處理下載。");
-      } else {
-        await navigator.clipboard.writeText(item.url);
-        tell("已複製影片來源網址。");
-      }
+      tell(await handler());
     } catch {
-      tell(direct ? "Chrome 未能開始下載。" : "未能將網址寫入剪貼簿。");
+      tell(error);
     } finally {
       button.disabled = false;
     }
   });
+  return button;
+}
+
+async function openHlsDownload(url) {
+  const key = `hls-${crypto.randomUUID()}`;
+  await chrome.storage.session.set({ [key]: { url, pageOrigin } });
+  try {
+    await chrome.tabs.create({ url: chrome.runtime.getURL(`download.html#${key}`) });
+  } catch (error) {
+    await chrome.storage.session.remove(key);
+    throw error;
+  }
+  return "";
+}
+
+function makeItem(item) {
+  const element = document.createElement("li");
+  const info = document.createElement("div");
+  const details = document.createElement("div");
+  const title = document.createElement("strong");
+  const meta = document.createElement("p");
+  const actions = document.createElement("div");
+  const hls = item.format === "HLS";
+  const preview = hls ? makeHlsPreview(item.url, pageOrigin) : null;
+  info.className = "source-info";
+  actions.className = "actions";
+  meta.className = "meta";
+  meta.textContent = `${item.host} · ${item.foundIn}`;
+  if (preview) element.append(preview.element);
+  if (directFormats.has(item.format)) {
+    actions.append(action("下載", async () => {
+      await chrome.downloads.download({ url: item.url, saveAs: true });
+      return "已交由 Chrome 處理下載。";
+    }, "Chrome 未能開始下載。", true));
+  } else {
+    actions.append(action("複製網址", async () => {
+      await navigator.clipboard.writeText(item.url);
+      return "已複製影片來源網址。";
+    }, "未能將網址寫入剪貼簿。"));
+    if (hls) {
+      actions.append(action("下載", () => openHlsDownload(item.url), "未能開啟下載頁。", true));
+    }
+  }
   details.append(title, meta);
-  row.append(details, button);
-  return row;
+  info.append(details, actions);
+  element.append(info);
+  return { element, title, preview };
+}
+
+function itemKey(item) {
+  return `${item.format} ${item.url}`;
+}
+
+function renderSources(items) {
+  const visible = new Set(items.map(itemKey));
+  for (const [key, row] of rows) {
+    if (visible.has(key)) continue;
+    row.preview?.stop();
+    row.element.remove();
+    rows.delete(key);
+  }
+  let next = list.firstElementChild;
+  for (const [index, item] of items.entries()) {
+    const key = itemKey(item);
+    const row = rows.get(key) || makeItem(item);
+    rows.set(key, row);
+    const stream = item.format === "HLS" || item.format === "DASH";
+    const title = `${index + 1}. ${item.format}${stream ? " 串流" : ""}`;
+    if (row.title.textContent !== title) row.title.textContent = title;
+    if (row.element !== next) list.insertBefore(row.element, next);
+    next = row.element.nextElementSibling;
+  }
 }
 
 function render(state) {
   const items = state.sources;
   count.textContent = `找到 ${items.length} 筆影片來源`;
   empty.hidden = !!items.length;
-  const fingerprint = JSON.stringify(items);
-  if (fingerprint !== lastItems) {
-    lastItems = fingerprint;
-    list.replaceChildren(...items.map(makeItem));
-  }
+  renderSources(items);
 }
 
 function read(type = "read-videos") {
@@ -68,7 +121,7 @@ async function refresh() {
   } catch {
     count.textContent = "分頁已變更";
     tell("請重新開啟擴充功能以掃描目前的頁面。");
-    list.replaceChildren();
+    renderSources([]);
     empty.hidden = true;
     rescan.disabled = true;
     return;
@@ -93,6 +146,7 @@ async function open() {
       return;
     }
     tabId = tab.id;
+    pageOrigin = new URL(tab.url).origin;
     let state;
     try {
       state = await read();
