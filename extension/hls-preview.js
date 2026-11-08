@@ -1,4 +1,5 @@
 import { allowMediaHost, mediaCredentials, mediaUrl } from "./media-access.js";
+import { t } from "./i18n.js";
 
 let closePreview;
 
@@ -6,16 +7,13 @@ export function makeHlsPreview(source, pageOrigin) {
   const element = document.createElement("div");
   element.className = "preview";
   element.tabIndex = 0;
-  element.setAttribute("aria-label", "HLS 影片預覽，按 Enter 播放");
   const video = document.createElement("video");
   video.preload = "none";
   video.playsInline = true;
   video.muted = true;
-  video.setAttribute("aria-label", "HLS 影片預覽");
   const overlay = document.createElement("div");
   overlay.className = "preview-overlay";
   const cue = document.createElement("p");
-  cue.textContent = "滑鼠移到這裡即可預覽";
   const retry = document.createElement("button");
   retry.type = "button";
   retry.hidden = true;
@@ -28,6 +26,16 @@ export function makeHlsPreview(source, pageOrigin) {
   let player;
   let attempt;
   let blockedHost;
+  let cueMessage = "hoverPreview";
+  let errorMessage;
+
+  function localize() {
+    element.setAttribute("aria-label", t("previewKeyboard"));
+    video.setAttribute("aria-label", t("previewLabel"));
+    cue.textContent = t(cueMessage);
+    retry.textContent = t(blockedHost ? "allowAndRetry" : "retryPreview");
+    status.textContent = errorMessage ? t(errorMessage) : "";
+  }
 
   function stop() {
     attempt = null;
@@ -38,10 +46,12 @@ export function makeHlsPreview(source, pageOrigin) {
     video.controls = false;
     overlay.hidden = false;
     cue.hidden = false;
-    cue.textContent = "滑鼠移到這裡即可預覽";
+    cueMessage = "hoverPreview";
+    errorMessage = null;
     retry.hidden = true;
     status.hidden = true;
     if (closePreview === stop) closePreview = null;
+    localize();
   }
 
   function fail(message, retryHost) {
@@ -49,9 +59,9 @@ export function makeHlsPreview(source, pageOrigin) {
     blockedHost = retryHost;
     cue.hidden = true;
     retry.hidden = false;
-    retry.textContent = retryHost ? "允許來源並重試" : "重試預覽";
-    status.textContent = message;
+    errorMessage = message;
     status.hidden = false;
+    localize();
   }
 
   video.addEventListener("loadeddata", () => {
@@ -60,7 +70,7 @@ export function makeHlsPreview(source, pageOrigin) {
     video.controls = true;
   });
   video.addEventListener("error", () => {
-    if (attempt) fail("這個影片目前無法播放。");
+    if (attempt) fail("previewFailed");
   });
 
   async function start() {
@@ -77,14 +87,16 @@ export function makeHlsPreview(source, pageOrigin) {
     attempt = current;
     retry.hidden = true;
     cue.hidden = false;
-    cue.textContent = "正在載入預覽";
+    cueMessage = "loadingPreview";
+    errorMessage = null;
     status.hidden = true;
+    localize();
     try {
       if (blockedHost) {
         const allowed = await allowMediaHost(blockedHost);
         if (attempt !== current) return;
         if (!allowed) {
-          fail("請允許讀取影片來源後再試。", blockedHost);
+          fail("previewNeedsPermission", blockedHost);
           return;
         }
         blockedHost = null;
@@ -92,7 +104,7 @@ export function makeHlsPreview(source, pageOrigin) {
       const { default: Hls } = await import("./vendor/hls.min.mjs");
       if (attempt !== current) return;
       if (!Hls.isSupported()) {
-        fail("這個瀏覽器無法播放 HLS 預覽。");
+        fail("previewUnsupported");
         return;
       }
       player = new Hls({
@@ -114,7 +126,7 @@ export function makeHlsPreview(source, pageOrigin) {
             retryHost = mediaUrl(source);
           }
         }
-        fail("預覽載入失敗，影片網址可能已失效或需要來源權限。", retryHost);
+        fail("previewLoadFailed", retryHost);
       });
       player.on(Hls.Events.MANIFEST_PARSED, () => {
         video.muted = true;
@@ -123,7 +135,7 @@ export function makeHlsPreview(source, pageOrigin) {
       player.loadSource(source);
       player.attachMedia(video);
     } catch {
-      if (attempt === current) fail("這個影片目前無法播放。", blockedHost);
+      if (attempt === current) fail("previewFailed", blockedHost);
     }
   }
 
@@ -141,5 +153,6 @@ export function makeHlsPreview(source, pageOrigin) {
     start();
   });
   retry.addEventListener("click", start);
-  return { element, stop };
+  localize();
+  return { element, stop, localize };
 }

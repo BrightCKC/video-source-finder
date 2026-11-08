@@ -4,7 +4,12 @@ import { Conversion, HLS_FORMATS, Input, Mp4OutputFormat, Output, StreamTarget, 
 let blockedHost;
 let stopDownload;
 
-class DownloadError extends Error {}
+class DownloadError extends Error {
+  constructor(message, ...values) {
+    super(message);
+    this.values = values;
+  }
+}
 
 async function checkPlaylist(response) {
   // Detect manifests by their signature, including when the URL has no extension.
@@ -26,13 +31,13 @@ async function checkPlaylist(response) {
       const { value, done } = await reader.read();
       if (done) break;
       text += decoder.decode(value, { stream: true });
-      if (text.length > 8 * 1024 * 1024) throw new DownloadError("串流清單過大，無法下載。");
+      if (text.length > 8 * 1024 * 1024) throw new DownloadError("playlistTooLarge");
     }
     if (/^#EXT-X-(?:SESSION-)?KEY:(?!\s*METHOD=NONE(?:,|\s|$))/m.test(text)) {
-      throw new DownloadError("此串流已加密。這裡支援未加密影片的下載。");
+      throw new DownloadError("encryptedStream");
     }
     if (/^#EXTINF:/m.test(text) && !/^#EXT-X-ENDLIST\s*$/m.test(text)) {
-      throw new DownloadError("此串流仍在直播，請選擇已結束的影片。");
+      throw new DownloadError("liveStream");
     }
   } finally {
     // A cloned stream's cancel promise can wait for the original stream to finish.
@@ -48,16 +53,16 @@ async function fetchMedia(value, init, pageOrigin) {
   } catch (error) {
     if (error instanceof TypeError && !init?.signal?.aborted) {
       blockedHost = url.origin;
-      throw new DownloadError("無法讀取影片來源。可允許來源後重試。");
+      throw new DownloadError("downloadNeedsPermission");
     }
     throw error;
   }
   if (!response.ok) {
     response.body?.cancel().catch(() => {});
     if (response.status === 401 || response.status === 403) {
-      throw new DownloadError("影片來源拒絕存取。請重新整理原頁並重新選擇影片。");
+      throw new DownloadError("accessDenied");
     }
-    throw new DownloadError(`影片來源回傳 HTTP ${response.status}。`);
+    throw new DownloadError("httpError", response.status);
   }
   const range = new Headers(init?.headers).get("range");
   if (response.body && (!range || range.startsWith("bytes=0-"))) {
@@ -82,7 +87,7 @@ async function saveVideo({ url, pageOrigin, handle }) {
   try {
     file = await handle.createWritable({ mode: "exclusive" });
     if (cancelled) throw new Error("Download cancelled");
-    self.postMessage({ status: "running", text: "正在讀取串流。" });
+    self.postMessage({ status: "running", message: "readingStream" });
     const source = new UrlSource(url, {
       fetchFn: (value, init) => fetchMedia(value, init, pageOrigin),
       getRetryDelay: () => null,
@@ -90,37 +95,37 @@ async function saveVideo({ url, pageOrigin, handle }) {
     input = new Input({ source, formats: HLS_FORMATS });
     const video = await input.getPrimaryVideoTrack();
     const audio = await input.getPrimaryAudioTrack();
-    if (!video) throw new DownloadError("串流中找不到可用的影像。");
+    if (!video) throw new DownloadError("missingVideoTrack");
     if (await video.isLive() || await audio?.isLive()) {
-      throw new DownloadError("此串流仍在直播，請選擇已結束的影片。");
+      throw new DownloadError("liveStream");
     }
     const target = new StreamTarget(new WritableStream({ write: (chunk) => file.write(chunk) }));
     const output = new Output({ target, format: new Mp4OutputFormat() });
     const conversion = await Conversion.init({ input, output, copy: { mode: "forced" } });
     if (!conversion.isValid || !conversion.utilizedTracks.includes(video)
       || (audio && !conversion.utilizedTracks.includes(audio))) {
-      throw new DownloadError("這個串流的影音格式無法直接儲存為 MP4。");
+      throw new DownloadError("incompatibleMp4");
     }
     let previousPercent = -1;
     conversion.onProgress = (value) => {
       const percent = Math.floor(value * 100);
       if (percent === previousPercent) return;
       previousPercent = percent;
-      self.postMessage({ status: "running", text: `正在下載影片 ${percent}%` });
+      self.postMessage({ status: "running", message: "downloadingVideo", values: [percent] });
     };
     await conversion.execute();
     if (cancelled) throw new Error("Download cancelled");
     stopDownload = null;
     await file.close();
     file = null;
-    self.postMessage({ status: "done", text: `已儲存 ${handle.name}。` });
+    self.postMessage({ status: "done", message: "savedFile", values: [handle.name] });
   } catch (error) {
     await file?.abort().catch(() => {});
     if (cancelled || error.name === "AbortError") {
-      self.postMessage({ status: "cancelled", text: "已取消下載。" });
+      self.postMessage({ status: "cancelled", message: "downloadCancelled" });
     } else {
-      const text = error instanceof DownloadError ? error.message : "未能儲存影片。請確認串流可播放後再試。";
-      self.postMessage({ status: "error", text, blockedHost });
+      const failure = error instanceof DownloadError ? error : new DownloadError("downloadFailed");
+      self.postMessage({ status: "error", message: failure.message, values: failure.values, blockedHost });
     }
   } finally {
     stopDownload = null;

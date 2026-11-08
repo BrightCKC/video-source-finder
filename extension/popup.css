@@ -15,11 +15,29 @@ header, main {
 }
 
 header {
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+}
+
+.header-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+}
+
+.language-option {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.language-option select {
+  font: inherit;
+  color: CanvasText;
+  background: Canvas;
 }
 
 h1 {
@@ -53,6 +71,13 @@ li {
 .actions {
   display: flex;
   gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.source-info > div:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .preview {

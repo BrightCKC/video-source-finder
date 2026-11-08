@@ -1,24 +1,33 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>網頁影片偵測器</title>
+  <title>Video Source Finder</title>
   <link rel="stylesheet" href="popup.css">
   <script src="popup.js" type="module"></script>
 </head>
 <body>
   <header>
-    <div>
-      <h1>網頁影片偵測器</h1>
-      <p id="count" aria-live="polite">正在讀取目前分頁</p>
+    <div class="header-row">
+      <div>
+        <h1 data-message="appName">Video Source Finder</h1>
+        <p id="count" aria-live="polite">Reading the current tab…</p>
+      </div>
+      <button id="rescan" type="button" data-message="rescan" disabled>Rescan</button>
     </div>
-    <button id="rescan" type="button" disabled>重新掃描</button>
+    <label class="language-option">
+      <span data-message="languageLabel">Language</span>
+      <select id="language" disabled>
+        <option value="en" lang="en">English</option>
+        <option value="zh-TW" lang="zh-Hant">繁體中文</option>
+      </select>
+    </label>
   </header>
   <main>
     <p id="notice" role="status" hidden></p>
-    <ol id="sources" aria-label="影片來源"></ol>
-    <p id="empty" hidden>目前沒有找到影片來源。影片若在播放時才載入，請播放後再查看清單。</p>
+    <ol id="sources" aria-label="Video sources"></ol>
+    <p id="empty" data-message="noSources" hidden>No video sources found. If a video loads only when played, start playback and check the list again.</p>
   </main>
 </body>
 </html>

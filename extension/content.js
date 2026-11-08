@@ -52,7 +52,7 @@
     url.hash = "";
     const existing = sources.get(url.href);
     if (existing) {
-      if (existing.format === "影片" && format !== "影片") existing.format = format;
+      if (existing.format === "video" && format !== "video") existing.format = format;
       if (title && titlePriority >= existing.titlePriority) {
         existing.title = title;
         existing.titlePriority = titlePriority;
@@ -82,19 +82,19 @@
       const caption = titleLine(video.closest("figure")?.querySelector("figcaption")?.textContent);
       const title = videoTitle || caption || pageTitle;
       const priority = videoTitle ? 3 : caption ? 2 : 1;
-      addSource(video.getAttribute("data-hls-src"), "HLS", "播放器", title, priority);
-      addSource(video.currentSrc, "影片", "播放器", title, priority);
-      addSource(video.getAttribute("src"), "影片", "播放器", title, priority);
+      addSource(video.getAttribute("data-hls-src"), "HLS", "sourcePlayer", title, priority);
+      addSource(video.currentSrc, "video", "sourcePlayer", title, priority);
+      addSource(video.getAttribute("src"), "video", "sourcePlayer", title, priority);
       for (const source of video.querySelectorAll("source[src]")) {
         const mime = source.type.split(";", 1)[0].trim().toLowerCase();
-        const format = Object.hasOwn(mimeFormats, mime) ? mimeFormats[mime] : "影片";
-        addSource(source.src, format, "播放器", title, priority);
+        const format = Object.hasOwn(mimeFormats, mime) ? mimeFormats[mime] : "video";
+        addSource(source.src, format, "sourcePlayer", title, priority);
       }
     }
     for (const meta of document.querySelectorAll(
       'meta[property="og:video"], meta[property="og:video:url"], meta[property="og:video:secure_url"]',
     )) {
-      addSource(meta.content, "", "網頁資訊", pageTitle, 1);
+      addSource(meta.content, "", "sourceMetadata", pageTitle, 1);
     }
   }
 
@@ -106,7 +106,7 @@
       const mime = (entry.contentType || "").split(";", 1)[0].trim().toLowerCase();
       if (mime === "text/html") continue;
       const format = Object.hasOwn(mimeFormats, mime) ? mimeFormats[mime] : "";
-      addSource(entry.name, format, "載入請求", pageTitle);
+      addSource(entry.name, format, "sourceRequest", pageTitle);
     }
   }
 
