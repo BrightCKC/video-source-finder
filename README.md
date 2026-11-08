@@ -1,12 +1,12 @@
 # Video Source Finder 網頁影片偵測器
 
-Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的影片來源，並讓你預覽、下載或複製網址。此說明適用於 `v0.5.0`，需要 Chrome 120 或更新版本。
+Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的影片來源，並讓你預覽、下載或複製網址。此說明適用於 `v0.5.1`，需要 Chrome 120 或更新版本。
 
 **開發聲明**　本專案由 OpenAI Codex 生成。
 
 ## 安裝
 
-1. 從 [v0.5.0 發佈頁](https://github.com/BrightCKC/video-source-finder/releases/tag/v0.5.0) 下載並解壓縮 `video-source-finder-v0.5.0.zip`。若下載的是專案原始碼，請使用解壓縮後的 `extension` 資料夾。
+1. 從 [v0.5.1 發佈頁](https://github.com/BrightCKC/video-source-finder/releases/tag/v0.5.1) 下載並解壓縮 `video-source-finder-v0.5.1.zip`。若下載的是專案原始碼，請使用解壓縮後的 `extension` 資料夾。
 2. 在 Chrome 網址列輸入 `chrome://extensions`，開啟右上角的「開發人員模式」。
 3. 點「載入未封裝項目」，選取含有 `manifest.json` 的資料夾。
 4. 重新整理影片頁面，從 Chrome 工具列的擴充功能選單開啟 **Video Source Finder**。
@@ -16,7 +16,7 @@ Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的�
 ## 使用方式
 
 1. 開啟影片所在的網頁，再點工具列上的 **Video Source Finder**。Chrome 會暫時授予擴充功能存取目前分頁的權限，以開始掃描。 [Chrome 的目前分頁權限](https://developer.chrome.com/docs/extensions/develop/concepts/activeTab)
-2. 將滑鼠移到 HLS 預覽畫面上即可靜音播放，移開時會暫停。清單優先顯示影片名稱，缺少名稱時會採用可取得的影片圖說或頁面標題。
+2. 將滑鼠移到 HLS 預覽畫面上即可靜音播放，移開時會暫停。清單優先顯示影片名稱，缺少名稱時會採用可對應的影片圖說或貼文內容。只有一筆頁面影片來源時，也可採用頁面標題。
 3. 點 **Download／下載**，在儲存對話框選擇資料夾和檔名。HLS 影片選好儲存位置後，會在背景繼續處理。也可以用 **Copy URL／複製網址** 複製串流來源。
 4. 從清單上方的 **Language／語言** 選單選擇 **English** 或 **繁體中文**。預設是英文，瀏覽器會記住上次選擇。
 
@@ -28,7 +28,7 @@ Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的�
 
 ### 找不到影片或無法載入
 
-- 有些網站會在播放後才發出影片請求。先在原網頁播放影片，再回到擴充功能清單按 **Rescan／重新掃描**。
+- 若影片位於尚未載入的貼文，先往下捲動，等網站載入該貼文後再按 **Rescan／重新掃描**。有些網站會在播放後才提供影片來源，這時可先在原網頁播放影片，再重新掃描。
 - 若出現來源權限提示，可按 **Allow video source／允許影片來源**，授權後重試。若網址已過期，請重新整理原網頁再選一次影片。
 - 如果 HLS 顯示仍在直播或已加密，請選擇可下載的未加密隨選影片。
 
