@@ -2,6 +2,8 @@
 
 Video Source Finder 是 Chrome 擴充功能，可列出目前分頁偵測到的影片來源，並讓你預覽、下載或複製網址。此說明適用於 `v0.4.0`，需要 Chrome 120 或更新版本。
 
+**開發聲明**　本專案由 OpenAI Codex 生成。
+
 ## 安裝
 
 1. 解壓縮 `video-source-finder-v0.4.0.zip`。若你已取得專案原始碼，也可以直接使用 `extension` 資料夾。
