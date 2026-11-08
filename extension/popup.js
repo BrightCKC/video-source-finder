@@ -1,6 +1,7 @@
 import { makeHlsPreview } from "./hls-preview.js";
 import { language, setLanguage, t } from "./i18n.js";
 import { allowMediaHost, mediaUrl } from "./media-access.js";
+import { readPageVideos } from "./page-media.js";
 
 const count = document.querySelector("#count");
 const empty = document.querySelector("#empty");
@@ -196,8 +197,14 @@ function applyLanguage(value) {
   render();
 }
 
-function read(type = "read-videos") {
-  return chrome.tabs.sendMessage(tabId, { type }, { frameId: 0 });
+async function read(type = "read-videos") {
+  const [page] = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: readPageVideos,
+  }).catch(() => []);
+  const target = page?.documentId ? { documentId: page.documentId } : { frameId: 0 };
+  return chrome.tabs.sendMessage(tabId, { type, pageVideos: page?.result }, target);
 }
 
 async function refresh() {

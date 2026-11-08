@@ -20,13 +20,25 @@
     "application/x-mpegurl": "HLS",
     "application/dash+xml": "DASH",
   };
+  const deferredAttributes = {
+    "data-hls-src": "HLS",
+    "data-video-src": "video",
+    "data-video-url": "video",
+    "data-src": "",
+  };
+  const deferredSelector = Object.keys(deferredAttributes).map((name) => `[${name}]`).join(", ");
   const sources = new Map();
+  const pageSources = new Map();
   let scope;
   let firstResourceTime = 0;
   let queuedScan;
 
   function reportCount() {
-    chrome.runtime.sendMessage({ type: "video-count", count: sources.size }).catch(() => {});
+    let count = sources.size;
+    for (const url of pageSources.keys()) {
+      if (!sources.has(url)) count++;
+    }
+    chrome.runtime.sendMessage({ type: "video-count", count }).catch(() => {});
   }
 
   function titleLine(value) {
@@ -36,7 +48,7 @@
     return characters.length > 120 ? characters.slice(0, 119).join("") + "…" : characters.join("");
   }
 
-  function addSource(value, hint, foundIn, title = "", titlePriority = 0) {
+  function addSource(value, hint, foundIn, title = "", titlePriority = 0, destination = sources) {
     if (typeof value !== "string" || !value.trim()) return;
     let url;
     try {
@@ -50,17 +62,20 @@
     const format = (extension && Object.hasOwn(formats, extension) && formats[extension]) || hint;
     if (!format) return;
     url.hash = "";
-    const existing = sources.get(url.href);
+    const existing = destination.get(url.href);
     if (existing) {
-      if (existing.format === "video" && format !== "video") existing.format = format;
-      if (title && titlePriority >= existing.titlePriority) {
-        existing.title = title;
-        existing.titlePriority = titlePriority;
-      }
+      const useTitle = title && titlePriority >= existing.titlePriority;
+      destination.set(url.href, {
+        ...existing,
+        format: existing.format === "video" ? format : existing.format,
+        foundIn: existing.foundIn === "sourceRequest" ? foundIn : existing.foundIn,
+        title: useTitle ? title : existing.title,
+        titlePriority: useTitle ? titlePriority : existing.titlePriority,
+      });
       return;
     }
-    sources.set(url.href, { url: url.href, host: url.host, format, foundIn, title, titlePriority });
-    reportCount();
+    destination.set(url.href, { url: url.href, host: url.host, format, foundIn, title, titlePriority });
+    if (destination === sources) reportCount();
   }
 
   function syncScope() {
@@ -69,28 +84,71 @@
     if (scope) firstResourceTime = performance.now();
     scope = current;
     sources.clear();
+    pageSources.clear();
     reportCount();
+  }
+
+  function sourceTitle(element) {
+    const title = titleLine(element.dataset.videoTitle) || titleLine(element.dataset.title) || titleLine(element.title);
+    if (title) return { title, priority: 3 };
+
+    const labelIds = element.getAttribute("aria-labelledby")?.trim().split(/\s+/) || [];
+    const label = titleLine(labelIds.map((id) => document.getElementById(id)?.textContent || "").join(" "));
+    const caption = titleLine(element.closest("figure")?.querySelector("figcaption")?.textContent);
+    const article = element.closest('article, [role="article"]');
+    const heading = titleLine(article?.querySelector('h1, h2, h3, h4, h5, h6, [role="heading"]')?.textContent);
+    return { title: label || caption || heading, priority: 2 };
+  }
+
+  function formatForMime(value) {
+    const mime = (value || "").split(";", 1)[0].trim().toLowerCase();
+    return Object.hasOwn(mimeFormats, mime) ? mimeFormats[mime] : "";
+  }
+
+  function scanStructuredVideos() {
+    for (const script of document.querySelectorAll('script[type="application/ld+json"]')) {
+      let data;
+      try {
+        data = JSON.parse(script.textContent);
+      } catch {
+        continue;
+      }
+      const pending = [data];
+      while (pending.length) {
+        const record = pending.pop();
+        if (!record || typeof record !== "object") continue;
+        const types = Array.isArray(record["@type"]) ? record["@type"] : [record["@type"]];
+        if (types.some((type) => typeof type === "string" && /^(?:https?:\/\/schema\.org\/)?VideoObject$/.test(type))) {
+          const mime = typeof record.encodingFormat === "string" ? record.encodingFormat : "";
+          addSource(record.contentUrl, formatForMime(mime) || "video", "sourceMetadata", titleLine(record.name), 3);
+        }
+        for (const value of Object.values(record)) {
+          if (value && typeof value === "object") pending.push(value);
+        }
+      }
+    }
   }
 
   function scanPlayer() {
     syncScope();
-    const pageTitle = titleLine(
-      document.querySelector('meta[property="og:title"]')?.content || document.title,
-    );
+    scanStructuredVideos();
     for (const video of document.querySelectorAll("video")) {
-      const videoTitle = titleLine(video.dataset.title || video.title);
-      const caption = titleLine(video.closest("figure")?.querySelector("figcaption")?.textContent);
-      const title = videoTitle || caption || pageTitle;
-      const priority = videoTitle ? 3 : caption ? 2 : 1;
-      addSource(video.getAttribute("data-hls-src"), "HLS", "sourcePlayer", title, priority);
+      const { title, priority } = sourceTitle(video);
       addSource(video.currentSrc, "video", "sourcePlayer", title, priority);
       addSource(video.getAttribute("src"), "video", "sourcePlayer", title, priority);
       for (const source of video.querySelectorAll("source[src]")) {
-        const mime = source.type.split(";", 1)[0].trim().toLowerCase();
-        const format = Object.hasOwn(mimeFormats, mime) ? mimeFormats[mime] : "video";
-        addSource(source.src, format, "sourcePlayer", title, priority);
+        addSource(source.src, formatForMime(source.type) || "video", "sourcePlayer", title, priority);
       }
     }
+    for (const element of document.querySelectorAll(deferredSelector)) {
+      const player = element.closest("video");
+      const { title, priority } = sourceTitle(player || element);
+      for (const [name, hint] of Object.entries(deferredAttributes)) {
+        const format = hint || (player ? formatForMime(element.getAttribute("type")) || "video" : "");
+        addSource(element.getAttribute(name), format, "sourcePlayer", title, priority);
+      }
+    }
+    const pageTitle = titleLine(document.querySelector('meta[property="og:title"]')?.content || document.title);
     for (const meta of document.querySelectorAll(
       'meta[property="og:video"], meta[property="og:video:url"], meta[property="og:video:secure_url"]',
     )) {
@@ -100,13 +158,22 @@
 
   function scanRequests(entries) {
     syncScope();
-    const pageTitle = titleLine(document.title);
     for (const entry of entries) {
       if (entry.startTime < firstResourceTime || entry.responseStatus >= 400) continue;
       const mime = (entry.contentType || "").split(";", 1)[0].trim().toLowerCase();
       if (mime === "text/html") continue;
-      const format = Object.hasOwn(mimeFormats, mime) ? mimeFormats[mime] : "";
-      addSource(entry.name, format, "sourceRequest", pageTitle);
+      addSource(entry.name, formatForMime(mime), "sourceRequest");
+    }
+  }
+
+  function scanPageVideos(page) {
+    pageSources.clear();
+    if (page?.pageUrl !== location.href || !Array.isArray(page.videos)) return;
+    for (const video of page.videos) {
+      const title = titleLine(video.title);
+      const caption = titleLine(video.caption);
+      const label = caption && video.sequence ? `${caption} (${video.sequence})` : caption;
+      addSource(video.url, "HLS", "sourceMetadata", title || label, title ? 3 : 2, pageSources);
     }
   }
 
@@ -121,8 +188,19 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type !== "read-videos" && message?.type !== "rescan-videos") return;
     scanPlayer();
+    scanPageVideos(message.pageVideos);
+    reportCount();
+    const current = new Map(sources);
+    for (const item of pageSources.values()) {
+      addSource(item.url, item.format, item.foundIn, item.title, item.titlePriority, current);
+    }
     sendResponse({
-      sources: Array.from(sources.values(), ({ titlePriority, ...item }) => item),
+      sources: Array.from(current.values(), ({ titlePriority, ...item }) => {
+        if (!item.title && current.size === 1 && item.foundIn !== "sourceRequest") {
+          item.title = titleLine(document.title);
+        }
+        return item;
+      }),
     });
   });
 
@@ -130,7 +208,7 @@
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ["src", "data-hls-src", "title", "data-title"],
+    attributeFilter: ["src", "title", "data-title", "data-video-title", "aria-labelledby", ...Object.keys(deferredAttributes)],
   });
   document.addEventListener("loadstart", queuePlayerScan, true);
   window.addEventListener("popstate", queuePlayerScan);
