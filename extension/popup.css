@@ -1,0 +1,86 @@
+:root {
+  color-scheme: light dark;
+  font: 14px/1.5 system-ui, "Microsoft JhengHei", sans-serif;
+}
+
+body {
+  width: 370px;
+  margin: 0;
+  color: CanvasText;
+  background: Canvas;
+}
+
+header, main {
+  padding: 14px 16px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 18%, Canvas);
+}
+
+h1 {
+  margin: 0;
+  font-size: 17px;
+}
+
+p {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid color-mix(in srgb, CanvasText 14%, Canvas);
+}
+
+li:last-child {
+  border-bottom: 0;
+}
+
+.meta, #count, #empty {
+  color: color-mix(in srgb, CanvasText 72%, Canvas);
+  font-size: 13px;
+}
+
+#notice {
+  padding: 8px 10px;
+  margin: 0 0 6px;
+  border-radius: 7px;
+  background: color-mix(in srgb, CanvasText 7%, Canvas);
+}
+
+button {
+  flex: none;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, CanvasText 25%, Canvas);
+  border-radius: 7px;
+  background: Canvas;
+  color: CanvasText;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.download {
+  background: #234dc8;
+  color: white;
+  border-color: #234dc8;
+}

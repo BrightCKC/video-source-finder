@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>網頁影片偵測器</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>網頁影片偵測器</h1>
+      <p id="count" aria-live="polite">正在讀取目前分頁</p>
+    </div>
+    <button id="rescan" type="button" disabled>重新掃描</button>
+  </header>
+  <main>
+    <p id="notice" role="status" hidden></p>
+    <ol id="sources" aria-label="影片來源"></ol>
+    <p id="empty" hidden>目前沒有找到影片來源。影片若在播放時才載入，請播放後再查看清單。</p>
+  </main>
+</body>
+</html>

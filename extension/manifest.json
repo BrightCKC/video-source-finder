@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "網頁影片偵測器",
+  "description": "找出網頁中可存取的影片來源，再由你選擇要下載的檔案。",
+  "version": "0.1.0",
+  "minimum_chrome_version": "120",
+  "permissions": ["activeTab", "scripting", "downloads"],
+  "action": {"default_popup": "popup.html"},
+  "background": {"service_worker": "background.js"}
+}
