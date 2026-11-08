@@ -5,19 +5,24 @@ let closePreview;
 export function makeHlsPreview(source, pageOrigin) {
   const element = document.createElement("div");
   element.className = "preview";
+  element.tabIndex = 0;
+  element.setAttribute("aria-label", "HLS 影片預覽，按 Enter 播放");
   const video = document.createElement("video");
   video.preload = "none";
   video.playsInline = true;
+  video.muted = true;
   video.setAttribute("aria-label", "HLS 影片預覽");
   const overlay = document.createElement("div");
   overlay.className = "preview-overlay";
-  const play = document.createElement("button");
-  play.type = "button";
-  play.textContent = "▶ 播放預覽";
+  const cue = document.createElement("p");
+  cue.textContent = "滑鼠移到這裡即可預覽";
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.hidden = true;
   const status = document.createElement("p");
   status.setAttribute("role", "status");
   status.hidden = true;
-  overlay.append(play, status);
+  overlay.append(cue, retry, status);
   element.append(video, overlay);
 
   let player;
@@ -32,8 +37,9 @@ export function makeHlsPreview(source, pageOrigin) {
     video.load();
     video.controls = false;
     overlay.hidden = false;
-    play.disabled = false;
-    play.textContent = "▶ 播放預覽";
+    cue.hidden = false;
+    cue.textContent = "滑鼠移到這裡即可預覽";
+    retry.hidden = true;
     status.hidden = true;
     if (closePreview === stop) closePreview = null;
   }
@@ -41,7 +47,9 @@ export function makeHlsPreview(source, pageOrigin) {
   function fail(message, retryHost) {
     stop();
     blockedHost = retryHost;
-    play.textContent = retryHost ? "允許來源並重試" : "重試預覽";
+    cue.hidden = true;
+    retry.hidden = false;
+    retry.textContent = retryHost ? "允許來源並重試" : "重試預覽";
     status.textContent = message;
     status.hidden = false;
   }
@@ -55,13 +63,21 @@ export function makeHlsPreview(source, pageOrigin) {
     if (attempt) fail("這個影片目前無法播放。");
   });
 
-  play.addEventListener("click", async () => {
+  async function start() {
+    if (attempt) {
+      if (video.controls) {
+        video.muted = true;
+        video.play().catch(() => {});
+      }
+      return;
+    }
     closePreview?.();
     closePreview = stop;
     const current = {};
     attempt = current;
-    play.disabled = true;
-    play.textContent = "正在載入預覽";
+    retry.hidden = true;
+    cue.hidden = false;
+    cue.textContent = "正在載入預覽";
     status.hidden = true;
     try {
       if (blockedHost) {
@@ -100,12 +116,30 @@ export function makeHlsPreview(source, pageOrigin) {
         }
         fail("預覽載入失敗，影片網址可能已失效或需要來源權限。", retryHost);
       });
-      player.on(Hls.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+      player.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.muted = true;
+        video.play().catch(() => {});
+      });
       player.loadSource(source);
       player.attachMedia(video);
     } catch {
       if (attempt === current) fail("這個影片目前無法播放。", blockedHost);
     }
+  }
+
+  element.addEventListener("mouseenter", () => {
+    if (retry.hidden) start();
   });
+  element.addEventListener("mouseleave", () => {
+    if (!attempt) return;
+    if (video.controls) video.pause();
+    else if (!blockedHost) stop();
+  });
+  element.addEventListener("keydown", (event) => {
+    if (event.target !== element || !["Enter", " "].includes(event.key)) return;
+    event.preventDefault();
+    start();
+  });
+  retry.addEventListener("click", start);
   return { element, stop };
 }

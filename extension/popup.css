@@ -91,7 +91,7 @@ li:last-child {
   border-bottom: 0;
 }
 
-.meta, #count, #empty {
+.meta, .job-status, #count, #empty {
   color: color-mix(in srgb, CanvasText 72%, Canvas);
   font-size: 13px;
 }
@@ -125,17 +125,3 @@ button:disabled {
   border-color: #234dc8;
 }
 
-body.download-page {
-  width: min(100%, 520px);
-  margin: 48px auto 0;
-}
-
-.download-page progress {
-  display: block;
-  width: 100%;
-  margin: 12px 0;
-}
-
-.download-page progress[hidden] {
-  display: none;
-}

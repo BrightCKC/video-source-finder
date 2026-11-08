@@ -1,12 +1,6 @@
-import { allowMediaHost, mediaCredentials, mediaUrl } from "./media-access.js";
+import { mediaCredentials, mediaUrl } from "./media-access.js";
 import { Conversion, HLS_FORMATS, Input, Mp4OutputFormat, Output, StreamTarget, UrlSource } from "./vendor/mediabunny.mjs";
 
-const status = document.querySelector("#status");
-const progress = document.querySelector("#progress");
-const save = document.querySelector("#save");
-const allow = document.querySelector("#allow");
-const cancel = document.querySelector("#cancel");
-let selected;
 let blockedHost;
 let stopDownload;
 
@@ -46,14 +40,14 @@ async function checkPlaylist(response) {
   }
 }
 
-async function fetchMedia(value, init) {
+async function fetchMedia(value, init, pageOrigin) {
   const url = mediaUrl(value);
   let response;
   try {
-    response = await fetch(url, { ...init, credentials: mediaCredentials(url, selected.pageOrigin) });
+    response = await fetch(url, { ...init, credentials: mediaCredentials(url, pageOrigin) });
   } catch (error) {
     if (error instanceof TypeError && !init?.signal?.aborted) {
-      blockedHost = url;
+      blockedHost = url.origin;
       throw new DownloadError("無法讀取影片來源。可允許來源後重試。");
     }
     throw error;
@@ -77,31 +71,22 @@ async function fetchMedia(value, init) {
   return response;
 }
 
-save.addEventListener("click", async () => {
-  save.disabled = true;
-  allow.hidden = true;
-  blockedHost = null;
+async function saveVideo({ url, pageOrigin, handle }) {
   let file;
   let input;
   let cancelled = false;
+  stopDownload = () => {
+    cancelled = true;
+    input?.dispose();
+  };
   try {
-    const handle = await showSaveFilePicker({
-      suggestedName: "影片.mp4",
-      types: [{ description: "MP4 影片", accept: { "video/mp4": [".mp4"] } }],
+    file = await handle.createWritable({ mode: "exclusive" });
+    if (cancelled) throw new Error("Download cancelled");
+    self.postMessage({ status: "running", text: "正在讀取串流。" });
+    const source = new UrlSource(url, {
+      fetchFn: (value, init) => fetchMedia(value, init, pageOrigin),
+      getRetryDelay: () => null,
     });
-    file = await handle.createWritable();
-    stopDownload = () => {
-      cancelled = true;
-      cancel.disabled = true;
-      input?.dispose();
-    };
-    cancel.disabled = false;
-    cancel.hidden = false;
-    progress.hidden = false;
-    progress.removeAttribute("value");
-    status.textContent = "正在讀取串流。";
-
-    const source = new UrlSource(selected.url, { fetchFn: fetchMedia, getRetryDelay: () => null });
     input = new Input({ source, formats: HLS_FORMATS });
     const video = await input.getPrimaryVideoTrack();
     const audio = await input.getPrimaryAudioTrack();
@@ -116,56 +101,37 @@ save.addEventListener("click", async () => {
       || (audio && !conversion.utilizedTracks.includes(audio))) {
       throw new DownloadError("這個串流的影音格式無法直接儲存為 MP4。");
     }
-    status.textContent = "正在下載影片。";
+    let previousPercent = -1;
     conversion.onProgress = (value) => {
-      progress.value = value;
+      const percent = Math.floor(value * 100);
+      if (percent === previousPercent) return;
+      previousPercent = percent;
+      self.postMessage({ status: "running", text: `正在下載影片 ${percent}%` });
     };
     await conversion.execute();
     if (cancelled) throw new Error("Download cancelled");
-    cancel.disabled = true;
+    stopDownload = null;
     await file.close();
     file = null;
-    status.textContent = `已儲存 ${handle.name}。`;
-    return;
+    self.postMessage({ status: "done", text: `已儲存 ${handle.name}。` });
   } catch (error) {
     await file?.abort().catch(() => {});
     if (cancelled || error.name === "AbortError") {
-      status.textContent = "已取消下載。";
+      self.postMessage({ status: "cancelled", text: "已取消下載。" });
     } else {
-      status.textContent = error instanceof DownloadError ? error.message : "未能儲存影片。請確認串流可播放後再試。";
-      allow.hidden = !blockedHost;
+      const text = error instanceof DownloadError ? error.message : "未能儲存影片。請確認串流可播放後再試。";
+      self.postMessage({ status: "error", text, blockedHost });
     }
-    save.disabled = false;
   } finally {
     stopDownload = null;
     input?.dispose();
-    progress.hidden = true;
-    cancel.hidden = true;
   }
-});
-
-cancel.addEventListener("click", () => stopDownload?.());
-
-allow.addEventListener("click", async () => {
-  try {
-    if (await allowMediaHost(blockedHost)) {
-      allow.hidden = true;
-      status.textContent = "已允許影片來源。請再次選擇儲存位置。";
-    }
-  } catch {
-    status.textContent = "未能取得影片來源的權限。";
-  }
-});
-
-const key = location.hash.slice(1);
-try {
-  if (!/^hls-[\da-f-]+$/i.test(key)) throw new Error("Invalid download ID");
-  selected = (await chrome.storage.session.get(key))[key];
-  if (!selected) throw new Error("Missing download");
-  mediaUrl(selected.url);
-  await chrome.storage.session.remove(key);
-  status.textContent = "選擇儲存位置後，會將串流儲存為 MP4。";
-  save.disabled = false;
-} catch {
-  status.textContent = "下載項目已失效，請從擴充功能清單重新選擇。";
 }
+
+self.addEventListener("message", ({ data }) => {
+  if (data.type === "cancel") {
+    stopDownload?.();
+    return;
+  }
+  saveVideo(data);
+});
